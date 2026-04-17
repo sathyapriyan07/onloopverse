@@ -32,8 +32,32 @@ export function AdminLayout() {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cinema-dark p-4">
+        <div className="text-center max-w-md">
+          <div className="glass rounded-2xl p-8">
+            <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+            <p className="text-cinema-text-secondary mb-4">
+              Your account doesn't have admin privileges.
+            </p>
+            <p className="text-sm text-cinema-text-secondary mb-6">
+              Make sure your email ({user?.email}) is added to the admin_users table in Supabase.
+            </p>
+            <button
+              onClick={() => useAuthStore.getState().signOut()}
+              className="btn-secondary"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

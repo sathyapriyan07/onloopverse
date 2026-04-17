@@ -160,6 +160,9 @@ CREATE POLICY "Public read access" ON movie_people FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON awards FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON movie_awards FOR SELECT USING (true);
 
+-- Admin users table access (for checking admin status)
+CREATE POLICY "Public read access admin_users" ON admin_users FOR SELECT USING (true);
+
 -- Admin write access policies (checked via service role)
 CREATE POLICY "Admin write access movies" ON movies FOR ALL USING (true);
 CREATE POLICY "Admin write access people" ON people FOR ALL USING (true);

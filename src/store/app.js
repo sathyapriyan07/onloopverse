@@ -67,10 +67,12 @@ export const useAuthStore = create((set, get) => ({
       });
 
       if (error) throw error;
-      set({ user: data.user, error: null });
+      
+      await get().checkAdminStatus(email);
+      set({ user: data.user, error: null, loading: false });
       return data;
     } catch (error) {
-      set({ error: error.message });
+      set({ error: error.message, loading: false });
       throw error;
     }
   },

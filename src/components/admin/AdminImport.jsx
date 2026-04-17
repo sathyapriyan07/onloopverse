@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, Trash2, ExternalLink, Loader2, BookOpen } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Search, ExternalLink, Loader2, BookOpen, Film } from 'lucide-react';
 import { tmdbApi } from '../../lib/tmdb';
-import { searchWikipediaForPerson } from '../../lib/wikipedia';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
-import { moviePersonDefault, personDefault } from '../../lib/defaults';
 
 export function AdminImport() {
-  const [tmdbId, setTmdbId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [movieData, setMovieData] = useState(null);
   const [credits, setCredits] = useState(null);
@@ -15,15 +15,38 @@ export function AdminImport() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchMovieFromTMDB = async () => {
-    if (!tmdbId.trim()) return;
-    
+  const searchMovies = async () => {
+    if (!searchQuery.trim()) return;
+
+    setSearching(true);
+    setError('');
+    setSearchResults([]);
+
+    try {
+      const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
+      if (!API_KEY) {
+        setError('TMDb API key not configured');
+        setSearching(false);
+        return;
+      }
+
+      const data = await tmdbApi.searchMovies(searchQuery);
+      setSearchResults(data.results || []);
+    } catch (err) {
+      setError(err.message || 'Failed to search movies');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const fetchMovieFromTMDB = async (movieId) => {
     setLoading(true);
     setError('');
     setMovieData(null);
     setCredits(null);
     setWikiData(null);
     setSaved(false);
+    setSearchResults([]);
 
     try {
       const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
@@ -34,8 +57,8 @@ export function AdminImport() {
       }
 
       const [movieRes, creditsRes] = await Promise.all([
-        tmdbApi.getMovie(tmdbId),
-        tmdbApi.getMovieCredits(tmdbId),
+        tmdbApi.getMovie(movieId),
+        tmdbApi.getMovieCredits(movieId),
       ]);
 
       setMovieData(movieRes);
@@ -123,7 +146,6 @@ export function AdminImport() {
       }
 
       setSaved(true);
-      setTmdbId('');
       setMovieData(null);
       setCredits(null);
       setWikiData(null);
@@ -135,40 +157,94 @@ export function AdminImport() {
     }
   };
 
+  const resetForm = () => {
+    setMovieData(null);
+    setCredits(null);
+    setWikiData(null);
+    setSaved(false);
+    setSearchQuery('');
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold mb-2">Import Movie from TMDb</h1>
         <p className="text-cinema-text-secondary">
-          Enter a TMDb movie ID to fetch and import movie data
+          Search for movies or enter a TMDb ID to import
         </p>
       </div>
 
-      <div className="glass rounded-2xl p-6">
-        <div className="flex gap-4">
-          <input
-            type="number"
-            value={tmdbId}
-            onChange={(e) => setTmdbId(e.target.value)}
-            placeholder="Enter TMDb Movie ID (e.g., 603)"
-            className="input-field flex-1"
-          />
-          <button
-            onClick={fetchMovieFromTMDB}
-            disabled={loading || !tmdbId.trim()}
-            className="btn-primary flex items-center gap-2"
-          >
-            {loading ? (
-              <>
+      {!movieData && (
+        <div className="glass rounded-2xl p-6">
+          <div className="flex gap-4 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cinema-text-secondary" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchMovies()}
+                placeholder="Search for a movie..."
+                className="input-field pl-12"
+              />
+            </div>
+            <button
+              onClick={searchMovies}
+              disabled={searching || !searchQuery.trim()}
+              className="btn-secondary flex items-center gap-2"
+            >
+              {searching ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Fetching...
-              </>
-            ) : (
-              'Fetch Movie'
-            )}
-          </button>
+              ) : (
+                <Search className="w-5 h-5" />
+              )}
+              Search
+            </button>
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {searchResults.map((movie) => (
+                <button
+                  key={movie.id}
+                  onClick={() => fetchMovieFromTMDB(movie.id)}
+                  className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors text-left"
+                >
+                  <div className="w-12 h-16 rounded-lg bg-cinema-card overflow-hidden flex-shrink-0">
+                    {movie.poster_path ? (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w92${movie.poster_path}`}
+                        alt={movie.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Film className="w-6 h-6 text-cinema-text-secondary" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{movie.title}</p>
+                    <p className="text-sm text-cinema-text-secondary">
+                      {movie.release_date?.split('-')[0] || 'Unknown year'}
+                      {movie.vote_average > 0 && ` • ${movie.vote_average.toFixed(1)}`}
+                    </p>
+                  </div>
+                  <div className="text-xs text-cinema-text-secondary bg-cinema-card px-2 py-1 rounded">
+                    ID: {movie.id}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {searchResults.length === 0 && searchQuery && !searching && (
+            <p className="text-center text-cinema-text-secondary py-4">
+              No movies found. Try a different search term.
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
@@ -179,10 +255,20 @@ export function AdminImport() {
       {saved && (
         <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400">
           Movie imported successfully!
+          <button onClick={resetForm} className="ml-4 underline hover:no-underline">
+            Import another
+          </button>
         </div>
       )}
 
-      {movieData && (
+      {loading && (
+        <div className="glass rounded-2xl p-12 text-center">
+          <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-cinema-accent" />
+          <p className="text-cinema-text-secondary">Fetching movie details...</p>
+        </div>
+      )}
+
+      {movieData && !loading && (
         <div className="glass rounded-2xl overflow-hidden">
           <div className="flex flex-col md:flex-row">
             <div className="w-full md:w-64 flex-shrink-0">
@@ -193,11 +279,19 @@ export function AdminImport() {
               />
             </div>
             <div className="flex-1 p-6">
-              <h2 className="text-2xl font-bold mb-2">{movieData.title}</h2>
+              <div className="flex items-start justify-between mb-2">
+                <h2 className="text-2xl font-bold">{movieData.title}</h2>
+                <button
+                  onClick={resetForm}
+                  className="text-cinema-text-secondary hover:text-cinema-text text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
               {movieData.tagline && (
                 <p className="text-cinema-text-secondary italic mb-4">{movieData.tagline}</p>
               )}
-              
+
               <div className="flex flex-wrap gap-4 text-sm text-cinema-text-secondary mb-6">
                 {movieData.release_date && (
                   <span>Release: {movieData.release_date}</span>
@@ -308,4 +402,28 @@ export function AdminImport() {
       )}
     </div>
   );
+}
+
+async function searchWikipediaForMovie(title, year) {
+  try {
+    const searchQuery = year ? `${title} ${year} film` : `${title} film`;
+    const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=5&format=json&origin=*`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data && data[1] && data[1].length > 0) {
+      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(data[1][0].replace(/ /g, '_'))}`;
+      const summaryRes = await fetch(summaryUrl);
+      const summary = await summaryRes.json();
+      return {
+        title: summary.title,
+        extract: summary.extract,
+        url: summary.content_urls?.desktop?.page,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Wikipedia search failed:', error);
+    return null;
+  }
 }

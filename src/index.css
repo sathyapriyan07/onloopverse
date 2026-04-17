@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-cinema-border;
+  }
+  
+  body {
+    @apply bg-cinema-dark text-cinema-text;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-cinema-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-cinema-card rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-cinema-card-hover;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-cinema-card/80 backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-dark {
+    @apply bg-black/60 backdrop-blur-xl border border-white/5;
+  }
+
+  .btn-primary {
+    @apply bg-cinema-accent hover:bg-cinema-accent-hover text-cinema-dark font-semibold px-6 py-3 rounded-xl transition-all duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-cinema-card hover:bg-cinema-card-hover border border-cinema-border text-cinema-text font-medium px-6 py-3 rounded-xl transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-white/5 text-cinema-text px-4 py-2 rounded-lg transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-cinema-accent to-yellow-600 bg-clip-text text-transparent;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-cinema-card rounded;
+  }
+
+  .section-title {
+    @apply text-2xl font-semibold text-cinema-text mb-4;
+  }
+
+  .input-field {
+    @apply w-full bg-cinema-card border border-cinema-border rounded-xl px-4 py-3 text-cinema-text placeholder:text-cinema-text-secondary focus:outline-none focus:border-cinema-accent transition-colors;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

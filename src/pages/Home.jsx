@@ -4,8 +4,7 @@ import { ArrowRight, Play } from 'lucide-react';
 import { MovieCard } from '../components/movie/MovieCard';
 import { HorizontalScroll } from '../components/ui/HorizontalScroll';
 import { SectionSkeleton } from '../components/ui/Skeleton';
-import { tmdbApi, getMoviesByLanguage } from '../lib/tmdb';
-import { INDUSTRY_SLUGS } from '../lib/constants';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const INDUSTRIES = [
   { code: 'ta', name: 'Tamil', color: 'from-red-500 to-orange-500' },
@@ -23,25 +22,22 @@ export function Home() {
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-        if (!API_KEY) {
-          setLoading(false);
-          return;
-        }
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
 
-        const [trending, tamil, telugu, malayalam, hindi] = await Promise.all([
-          tmdbApi.getTrendingMovies('week'),
-          getMoviesByLanguage('ta', 1),
-          getMoviesByLanguage('te', 1),
-          getMoviesByLanguage('ml', 1),
-          getMoviesByLanguage('hi', 1),
+      try {
+        const [allMovies, tamilData, teluguData] = await Promise.all([
+          supabase.from('movies').select('*').order('created_at', { ascending: false }).limit(20),
+          supabase.from('movies').select('*').eq('language', 'ta').order('tmdb_rating', { ascending: false }).limit(10),
+          supabase.from('movies').select('*').eq('language', 'te').order('tmdb_rating', { ascending: false }).limit(10),
         ]);
 
-        setTrendingMovies(trending.results?.slice(0, 10) || []);
-        setFeaturedMovies(trending.results?.slice(0, 5) || []);
-        setTamilMovies(tamil.results || []);
-        setTeluguMovies(telugu.results || []);
+        setTrendingMovies(allMovies.data || []);
+        setFeaturedMovies(allMovies.data?.slice(0, 5) || []);
+        setTamilMovies(tamilData.data || []);
+        setTeluguMovies(teluguData.data || []);
         
         setLoading(false);
       } catch (error) {
@@ -59,6 +55,22 @@ export function Home() {
         <SectionSkeleton count={5} />
         <SectionSkeleton count={6} />
         <SectionSkeleton count={6} />
+      </div>
+    );
+  }
+
+  if (!isSupabaseConfigured()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto px-4">
+          <h1 className="text-3xl font-bold mb-4">Welcome to OnloopVerse</h1>
+          <p className="text-cinema-text-secondary mb-6">
+            Please configure Supabase to start viewing movies.
+          </p>
+          <Link to="/login" className="btn-primary">
+            Go to Admin Login
+          </Link>
+        </div>
       </div>
     );
   }

@@ -1,23 +1,14 @@
 import { useState, useEffect } from 'react';
 import { MovieCard } from '../components/movie/MovieCard';
 import { FilterBar } from '../components/ui/FilterBar';
-import { SectionSkeleton, MovieCardSkeleton } from '../components/ui/Skeleton';
-import { tmdbApi } from '../lib/tmdb';
-
-const INDUSTRIES = [
-  { value: 'all', label: 'All' },
-  { value: 'ta', label: 'Tamil' },
-  { value: 'te', label: 'Telugu' },
-  { value: 'ml', label: 'Malayalam' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'kn', label: 'Kannada' },
-];
+import { MovieCardSkeleton } from '../components/ui/Skeleton';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export function Movies() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
   const [filters, setFilters] = useState({
     industry: 'all',
     year: '',
@@ -26,33 +17,31 @@ export function Movies() {
 
   useEffect(() => {
     const fetchMovies = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-        if (!API_KEY) {
-          setLoading(false);
-          return;
-        }
-
-        const params = {
-          page: 1,
-          sort_by: 'popularity.desc',
-          include_adult: false,
-        };
+        let query = supabase
+          .from('movies')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(0, 23);
 
         if (filters.industry && filters.industry !== 'all') {
-          params.with_original_language = filters.industry;
+          query = query.eq('language', filters.industry);
         }
         if (filters.year) {
-          params.primary_release_year = parseInt(filters.year);
-        }
-        if (filters.genre) {
-          params.with_genres = filters.genre;
+          query = query.like('release_date', `${filters.year}%`);
         }
 
-        const data = await tmdbApi.discoverMovies(params);
-        setMovies(data.results || []);
-        setHasMore(data.total_pages > 1);
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        setMovies(data || []);
+        setHasMore((data?.length || 0) >= 24);
         setPage(1);
       } catch (error) {
         console.error('Error fetching movies:', error);
@@ -69,26 +58,25 @@ export function Movies() {
 
     setLoading(true);
     try {
-      const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-      const params = {
-        page: page + 1,
-        sort_by: 'popularity.desc',
-      };
+      let query = supabase
+        .from('movies')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(page * 24, (page + 1) * 24 - 1);
 
       if (filters.industry && filters.industry !== 'all') {
-        params.with_original_language = filters.industry;
+        query = query.eq('language', filters.industry);
       }
       if (filters.year) {
-        params.primary_release_year = parseInt(filters.year);
-      }
-      if (filters.genre) {
-        params.with_genres = filters.genre;
+        query = query.like('release_date', `${filters.year}%`);
       }
 
-      const data = await tmdbApi.discoverMovies(params);
-      setMovies((prev) => [...prev, ...(data.results || [])]);
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      setMovies((prev) => [...prev, ...(data || [])]);
       setPage((prev) => prev + 1);
-      setHasMore(data.total_pages > page + 1);
+      setHasMore((data?.length || 0) >= 24);
     } catch (error) {
       console.error('Error loading more movies:', error);
     } finally {

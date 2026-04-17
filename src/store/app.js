@@ -57,10 +57,9 @@ export const useAuthStore = create((set, get) => ({
 
   signIn: async (email, password) => {
     if (!isSupabaseConfigured()) {
-      throw new Error('Supabase not configured');
+      throw new Error('Supabase not configured. Please add your environment variables.');
     }
 
-    set({ loading: true, error: null });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -68,9 +67,10 @@ export const useAuthStore = create((set, get) => ({
       });
 
       if (error) throw error;
+      set({ user: data.user, error: null });
       return data;
     } catch (error) {
-      set({ error: error.message, loading: false });
+      set({ error: error.message });
       throw error;
     }
   },

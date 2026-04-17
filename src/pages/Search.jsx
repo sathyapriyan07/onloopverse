@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { MovieCard } from '../components/movie/MovieCard';
 import { PersonCard } from '../components/person/PersonCard';
 import { MovieCardSkeleton, PersonCardSkeleton } from '../components/ui/Skeleton';
-import { tmdbApi } from '../lib/tmdb';
 import { Film, User, Loader2 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -26,24 +26,23 @@ export function Search() {
   const performSearch = async (searchQuery) => {
     if (!searchQuery.trim()) return;
 
+    if (!isSupabaseConfigured()) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setHasSearched(true);
     setSearchParams({ q: searchQuery.trim() });
 
     try {
-      const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-      if (!API_KEY) {
-        setLoading(false);
-        return;
-      }
-
       const [moviesRes, peopleRes] = await Promise.all([
-        tmdbApi.searchMovies(searchQuery),
-        tmdbApi.searchPeople(searchQuery),
+        supabase.from('movies').select('*').ilike('title', `%${searchQuery}%`).limit(20),
+        supabase.from('people').select('*').ilike('name', `%${searchQuery}%`).limit(20),
       ]);
 
-      setMovies(moviesRes.results || []);
-      setPeople(peopleRes.results || []);
+      setMovies(moviesRes.data || []);
+      setPeople(peopleRes.data || []);
     } catch (error) {
       console.error('Search error:', error);
     } finally {

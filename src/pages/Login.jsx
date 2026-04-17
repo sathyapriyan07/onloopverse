@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Film, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/app';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -9,7 +10,13 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { signIn } = useAuthStore();
+  const { signIn, user } = useAuthStore();
+
+  useEffect(() => {
+    if (user) {
+      navigate('/admin');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,6 +32,28 @@ export function Login() {
       setLoading(false);
     }
   };
+
+  if (!isSupabaseConfigured()) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-cinema-card to-cinema-dark p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="glass rounded-2xl p-8">
+            <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-4">Configuration Required</h1>
+            <p className="text-cinema-text-secondary mb-4">
+              Please configure your Supabase environment variables to use the admin features.
+            </p>
+            <p className="text-sm text-cinema-text-secondary">
+              Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.
+            </p>
+            <Link to="/" className="btn-secondary mt-6 inline-block">
+              Back to home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-cinema-card to-cinema-dark p-4">

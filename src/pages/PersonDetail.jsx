@@ -1,39 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, MapPin, Film, Star, ExternalLink } from 'lucide-react';
-import { tmdbApi } from '../lib/tmdb';
-import { searchWikipediaForPerson } from '../lib/wikipedia';
+import { Calendar, MapPin, Film, ExternalLink } from 'lucide-react';
 import { getTmdbImageUrl, formatDate } from '../lib/utils';
 import { MovieCard } from '../components/movie/MovieCard';
 import { Badge } from '../components/ui/Badge';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export function PersonDetail() {
   const { id } = useParams();
   const [person, setPerson] = useState(null);
   const [credits, setCredits] = useState(null);
-  const [wikiData, setWikiData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchPersonData = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-        if (!API_KEY) {
-          setLoading(false);
-          return;
-        }
+        const { data: personData, error: personError } = await supabase
+          .from('people')
+          .select(`
+            *,
+            movie_people (
+              *,
+              movies (id, title, poster_path, release_date),
+              roles (name)
+            )
+          `)
+          .eq('id', id)
+          .single();
 
-        const [personData, creditsData] = await Promise.all([
-          tmdbApi.getPerson(id),
-          tmdbApi.getPersonMovieCredits(id),
-        ]);
-
+        if (personError) throw personError;
         setPerson(personData);
-        setCredits(creditsData);
-
-        const wiki = await searchWikipediaForPerson(personData.name);
-        setWikiData(wiki);
       } catch (error) {
         console.error('Error fetching person:', error);
       } finally {

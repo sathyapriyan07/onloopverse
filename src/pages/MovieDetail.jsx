@@ -1,45 +1,58 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, Clock, Calendar, Globe, Play, Award, Users, ExternalLink } from 'lucide-react';
-import { tmdbApi } from '../lib/tmdb';
-import { searchWikipediaForMovie } from '../lib/wikipedia';
 import { getTmdbImageUrl, formatRuntime, formatDate } from '../lib/utils';
 import { MovieCard } from '../components/movie/MovieCard';
-import { PersonCard } from '../components/person/PersonCard';
-import { MovieDetailSkeleton, SectionSkeleton } from '../components/ui/Skeleton';
+import { MovieDetailSkeleton } from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export function MovieDetail() {
   const { id } = useParams();
   const [movie, setMovie] = useState(null);
   const [credits, setCredits] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
-  const [wikiData, setWikiData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     const fetchMovieData = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-        if (!API_KEY) {
-          setLoading(false);
-          return;
-        }
+        const { data: movieData, error: movieError } = await supabase
+          .from('movies')
+          .select(`
+            *,
+            industries (name),
+            movie_people (
+              *,
+              people (id, name, profile_path),
+              roles (name)
+            ),
+            movie_awards (
+              *,
+              awards (name),
+              people (name)
+            )
+          `)
+          .eq('id', id)
+          .single();
 
-        const [movieData, creditsData, recsData] = await Promise.all([
-          tmdbApi.getMovie(id),
-          tmdbApi.getMovieCredits(id),
-          tmdbApi.getPopularMovies(1, 'ta-IN'),
-        ]);
-
+        if (movieError) throw movieError;
         setMovie(movieData);
-        setCredits(creditsData);
-        setRecommendations(recsData.results?.slice(0, 6) || []);
 
-        const wiki = await searchWikipediaForMovie(movieData.title, movieData.release_date?.split('-')[0]);
-        setWikiData(wiki);
+        const { data: recsData } = await supabase
+          .from('movies')
+          .select('*')
+          .eq('language', movieData.language)
+          .neq('id', id)
+          .limit(6);
+        setRecommendations(recsData || []);
       } catch (error) {
         console.error('Error fetching movie:', error);
       } finally {

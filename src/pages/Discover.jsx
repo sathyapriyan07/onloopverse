@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Compass, Film, Users, Sparkles } from 'lucide-react';
+import { Compass, Film, Sparkles } from 'lucide-react';
 import { MovieCard } from '../components/movie/MovieCard';
-import { tmdbApi, getMoviesByLanguage } from '../lib/tmdb';
-import { SectionSkeleton, MovieCardSkeleton } from '../components/ui/Skeleton';
+import { MovieCardSkeleton } from '../components/ui/Skeleton';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const INDUSTRIES = [
   { code: 'ta', name: 'Tamil', flag: '🇮🇳', description: 'Kollywood' },
@@ -15,18 +15,18 @@ const INDUSTRIES = [
 ];
 
 const THEMES = [
-  { id: 'biopic', label: 'Biopic', icon: '👤', query: 'biography' },
-  { id: 'based-on-true', label: 'Based on True Events', icon: '📚', query: 'based on true story' },
-  { id: 'action', label: 'Action', icon: '💥', query: 'action' },
-  { id: 'romance', label: 'Romance', icon: '💕', query: 'romance' },
-  { id: 'thriller', label: 'Thriller', icon: '🔍', query: 'thriller' },
-  { id: 'comedy', label: 'Comedy', icon: '😂', query: 'comedy' },
-  { id: 'historical', label: 'Historical', icon: '⚔️', query: 'historical' },
-  { id: 'sports', label: 'Sports', icon: '🏆', query: 'sports drama' },
+  { id: 'biopic', label: 'Biopic', icon: '👤', genres: ['Biography'] },
+  { id: 'based-on-true', label: 'Based on True Events', icon: '📚', genres: ['Drama'] },
+  { id: 'action', label: 'Action', icon: '💥', genres: ['Action'] },
+  { id: 'romance', label: 'Romance', icon: '💕', genres: ['Romance'] },
+  { id: 'thriller', label: 'Thriller', icon: '🔍', genres: ['Thriller'] },
+  { id: 'comedy', label: 'Comedy', icon: '😂', genres: ['Comedy'] },
+  { id: 'historical', label: 'Historical', icon: '⚔️', genres: ['History'] },
+  { id: 'sports', label: 'Sports', icon: '🏆', genres: ['Drama'] },
 ];
 
 export function Discover() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const selectedIndustry = searchParams.get('industry') || '';
   const selectedTheme = searchParams.get('theme') || '';
   
@@ -37,28 +37,33 @@ export function Discover() {
 
   useEffect(() => {
     const fetchMovies = async () => {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
-        const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-        if (!API_KEY) {
-          setLoading(false);
-          return;
-        }
+        let query = supabase
+          .from('movies')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(0, 19);
 
-        let data;
         if (selectedIndustry && selectedIndustry !== 'all') {
-          data = await getMoviesByLanguage(selectedIndustry, 1);
+          query = query.eq('language', selectedIndustry);
         } else if (selectedTheme) {
           const theme = THEMES.find((t) => t.id === selectedTheme);
-          if (theme) {
-            data = await tmdbApi.searchMovies(theme.query, 1);
+          if (theme && theme.genres) {
+            query = query.or(`genres.cs.{"${theme.genres.join('","')}"}`);
           }
-        } else {
-          data = await tmdbApi.getPopularMovies(1, 'ta-IN');
         }
 
-        setMovies(data.results || []);
-        setHasMore(data.total_pages > 1);
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        setMovies(data || []);
+        setHasMore((data?.length || 0) >= 20);
         setPage(1);
       } catch (error) {
         console.error('Error fetching movies:', error);
@@ -75,23 +80,22 @@ export function Discover() {
 
     setLoading(true);
     try {
-      const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-      let data;
-      
+      let query = supabase
+        .from('movies')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(page * 20, (page + 1) * 20 - 1);
+
       if (selectedIndustry && selectedIndustry !== 'all') {
-        data = await getMoviesByLanguage(selectedIndustry, page + 1);
-      } else if (selectedTheme) {
-        const theme = THEMES.find((t) => t.id === selectedTheme);
-        if (theme) {
-          data = await tmdbApi.searchMovies(theme.query, page + 1);
-        }
-      } else {
-        data = await tmdbApi.getPopularMovies(page + 1, 'ta-IN');
+        query = query.eq('language', selectedIndustry);
       }
 
-      setMovies((prev) => [...prev, ...(data.results || [])]);
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      setMovies((prev) => [...prev, ...(data || [])]);
       setPage((prev) => prev + 1);
-      setHasMore(data.total_pages > page + 1);
+      setHasMore((data?.length || 0) >= 20);
     } catch (error) {
       console.error('Error loading more:', error);
     } finally {
